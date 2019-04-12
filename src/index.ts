@@ -140,6 +140,8 @@ const server = new ApolloServer({
                     if(err)
                         return reject(err);
                     
+                    if(!payload.exp)
+                        return reject('Unexpirable tokens are not allowed');
                     resolve(payload.user);
                 });
             }).catch((err) => {
