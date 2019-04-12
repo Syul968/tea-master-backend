@@ -11,10 +11,21 @@ admin.initializeApp({
 /**
  * Imports
  */
-import { ApolloServer, ApolloError, ValidationError, gql } from 'apollo-server';
+import { ApolloServer, ApolloError, ValidationError, gql, AuthenticationError } from 'apollo-server';
 import { User } from './models/user';
 import { Tea } from './models/tea';
 import { Brew } from './models/brew';
+
+/**
+ * Auth imports and setup
+ */
+const jwt = require('jsonwebtoken');
+const authConfig = require('../config/auth.json');
+const options = {
+    audience: authConfig.audience,
+    issuer: authConfig.issuer,
+    algorithms: ['HS256']
+}
 
 /**
  * Define GraphQL types
@@ -47,7 +58,7 @@ const typeDefs = gql`
 
     type Query {
         publicTeas: [Tea!]!
-        userTeas(id: ID!): [Tea!]!
+        userTeas: [Tea!]!
         teaBrews(id: ID!): [Brew!]!
     }
 `;
@@ -66,24 +77,31 @@ const resolvers = {
 
             return teas.docs.map( tea => tea.data() ) as Tea[];
         },
-        async userTeas(_: null, args: { id: String }) {
-            const userDoc = await admin
-            .firestore()
-            .collection('user')
-            .doc(args.id.toString())
-            .get();
+        async userTeas(_: null, args: null, context: { userId }) {
+            try {
+                const userId = await context.userId;
 
-            const user = userDoc.data() as User;
-            if(!user)
-                return new ValidationError('User ID not found');
+                const userDoc = await admin
+                .firestore()
+                .collection('users')
+                .doc(userId.toString())
+                .get();
+    
+                const user = userDoc.data() as User;
+                if(!user)
+                    return new ValidationError('User ID not found');
+    
+                const teas = await admin
+                .firestore()
+                .collection('teas')
+                .where('userId', '==', userId)
+                .get();
+    
+                return teas.docs.map( tea => tea.data() ) as Tea[];
+            } catch(e) {
+                throw new AuthenticationError('You are not allowed to do that');
+            }
 
-            const teas = await admin
-            .firestore()
-            .collection('teas')
-            .where('userId', '==', args.id)
-            .get();
-
-            return teas.docs.map( tea => tea.data() ) as Tea[];
         },
         async teaBrews(_: null, args: { id: String }) {
             const teaDoc = await admin
@@ -113,6 +131,28 @@ const resolvers = {
 const server = new ApolloServer({
     typeDefs,
     resolvers,
+    context: ({ req }) => {
+        const token = req.headers.authorization;
+
+        if(token) {
+            const userId = new Promise((resolve, reject) => {
+                jwt.verify(token, authConfig.secret, options, (err, payload) => {
+                    if(err)
+                        return reject(err);
+                    
+                    resolve(payload.user);
+                });
+            }).catch((err) => {
+                console.log(`>>> ${err}`);
+            });
+            
+            return {
+                userId
+            };
+        } else {
+            console.log('No token provided in query request');
+        }
+    },
     introspection: true
 });
 
