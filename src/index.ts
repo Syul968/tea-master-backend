@@ -26,6 +26,13 @@ const options = {
     issuer: authConfig.issuer,
     algorithms: ['HS256']
 }
+const signingOptions = {
+    audience: authConfig.audience,
+    issuer: authConfig.issuer,
+    expiresIn: '1w',
+    algorithm: 'HS256'
+};
+const bcrypt = require('bcrypt');
 
 /**
  * Define GraphQL types
@@ -60,6 +67,10 @@ const typeDefs = gql`
         publicTeas: [Tea!]!
         userTeas: [Tea!]!
         teaBrews(id: ID!): [Brew!]!
+    }
+
+    type Mutation {
+        login(id: String!, password: String!): String
     }
 `;
 
@@ -121,6 +132,66 @@ const resolvers = {
             .get();
 
             return brews.docs.map(brew => brew.data()) as Brew[];
+        }
+    },
+    Mutation: {
+        async login(_: null, args: { id: String, password: String }, context: { userId }) {
+            
+            try {
+                const userId = await context.userId;
+                if(userId)
+                    return console.log('Already logged in');
+            } catch(e) {
+                throw new AuthenticationError('Login auth error');
+            }
+
+            const userDoc = await admin
+            .firestore()
+            .collection('users')
+            .doc(args.id.toString())
+            .get();
+
+            if(!userDoc)
+                return new ValidationError('User ID not found');
+            
+            // const salt = userDoc.data().salt;
+            const dbHash = userDoc.data().password;
+            // console.log(`salt from firebase: ${salt}`);
+            
+            try {
+                // bcrypt.hash(args.password, salt, (err, hash) => {
+                //     if(err) {
+                //         console.log('>>> Failed to hash password in request');
+                //         return console.log(err);
+                //     }
+                    
+                // });
+                bcrypt.compare(args.password, dbHash, (err, res) => {
+                    if(err) {
+                        console.log('>>> Failed while comparing the hashes');
+                        return console.log(err);
+                    }
+                    
+                    if(res) {
+                        console.log('Logged in succesfully!');
+                        jwt.sign({
+                            user: args.id,
+                        }, authConfig.secret, signingOptions, (err, token) => {
+                            if(err) {
+                                console.log('>>> Failed to issue token');
+                                return console.log(err);
+                            }
+                            console.log(`token: ${token}`);
+                            return token as String;
+                        });
+                    }
+                    else {
+                        return console.log('Verify your credentials');
+                    }
+                });
+            } catch(e) {
+                throw new AuthenticationError('Are you this user?');
+            }
         }
     }
 };
