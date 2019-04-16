@@ -153,9 +153,18 @@ const resolvers = {
             if(!userDoc)
                 return new ValidationError('User ID not found');
             
+            // const salt = userDoc.data().salt;
             const dbHash = userDoc.data().password;
+            // console.log(`salt from firebase: ${salt}`);
             
             try {
+                // bcrypt.hash(args.password, salt, (err, hash) => {
+                //     if(err) {
+                //         console.log('>>> Failed to hash password in request');
+                //         return console.log(err);
+                //     }
+                    
+                // });
                 bcrypt.compare(args.password, dbHash, (err, res) => {
                     if(err) {
                         console.log('>>> Failed while comparing the hashes');
