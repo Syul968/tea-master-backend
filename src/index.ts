@@ -155,33 +155,18 @@ const resolvers = {
             
             const dbHash = userDoc.data().password;
             
-            try {
-                bcrypt.compare(args.password, dbHash, (err, res) => {
-                    if(err) {
-                        console.log('>>> Failed while comparing the hashes');
-                        return console.log(err);
-                    }
+            return bcrypt.compare(args.password, dbHash).then((res) => {
+                if(res) {
+                    console.log('Logged in succesfully!');
+                    const token = jwt.sign({
+                        user: args.id,
+                    }, authConfig.secret, signingOptions);
                     
-                    if(res) {
-                        console.log('Logged in succesfully!');
-                        jwt.sign({
-                            user: args.id,
-                        }, authConfig.secret, signingOptions, (err, token) => {
-                            if(err) {
-                                console.log('>>> Failed to issue token');
-                                return console.log(err);
-                            }
-                            console.log(`token: ${token}`);
-                            return token as String;
-                        });
-                    }
-                    else {
-                        return console.log('Verify your credentials');
-                    }
-                });
-            } catch(e) {
-                throw new AuthenticationError('Are you this user?');
-            }
+                    return token as String;
+                } else {
+                    return console.log('Verify your credentials');
+                }
+            });
         }
     }
 };
