@@ -13,7 +13,7 @@ admin.initializeApp({
  */
 import { ApolloServer, ApolloError, ValidationError, gql, AuthenticationError } from 'apollo-server';
 import { User } from './models/user';
-import { Tea } from './models/tea';
+import { Tea, Type } from './models/tea';
 import { Brew } from './models/brew';
 
 /**
@@ -48,6 +48,7 @@ const typeDefs = gql`
         brand: String!
         name: String!
         type: String!
+        rating: Float!
         isPublic: Boolean
         userId: ID!
     }
@@ -71,6 +72,7 @@ const typeDefs = gql`
 
     type Mutation {
         login(id: String!, password: String!): String
+        postTea(brand: String!, name: String!, type: String!, isPublic: Boolean): Tea!
     }
 `;
 
@@ -157,6 +159,7 @@ const resolvers = {
             const dbHash = userDoc.data().password;
             // console.log(`salt from firebase: ${salt}`);
             
+<<<<<<< HEAD
             try {
                 // bcrypt.hash(args.password, salt, (err, hash) => {
                 //     if(err) {
@@ -170,27 +173,87 @@ const resolvers = {
                         console.log('>>> Failed while comparing the hashes');
                         return console.log(err);
                     }
+=======
+            return bcrypt.compare(args.password, dbHash).then((res) => {
+                if(res) {
+                    console.log('Logged in succesfully!');
+                    const token = jwt.sign({
+                        user: args.id,
+                    }, authConfig.secret, signingOptions);
+>>>>>>> develop
                     
-                    if(res) {
-                        console.log('Logged in succesfully!');
-                        jwt.sign({
-                            user: args.id,
-                        }, authConfig.secret, signingOptions, (err, token) => {
-                            if(err) {
-                                console.log('>>> Failed to issue token');
-                                return console.log(err);
-                            }
-                            console.log(`token: ${token}`);
-                            return token as String;
-                        });
-                    }
-                    else {
-                        return console.log('Verify your credentials');
-                    }
-                });
+                    return token as String;
+                } else {
+                    return console.log('Verify your credentials');
+                }
+            });
+        },
+        async postTea(_:null, args: { brand: String, name: String, type: String, isPublic: Boolean }, context: { userId }) {
+            
+            try {
+                const userId = await context.userId;
+                if(!userId) {
+                    return console.log('Cannot post anonymous user tea');
+                }
+
+                const userDoc = await admin
+                .firestore()
+                .collection('users')
+                .doc(userId)
+                .get();
+    
+                if(!userDoc)
+                    return new AuthenticationError('User ID not found');
+    
+                const brand = args.brand;
+                const name = args.name;
+                const type = args.type;
+                const isPublic = args.isPublic || false;
+    
+                switch(type) {
+                    case Type.BLACK:
+                    case Type.GREEN:
+                    case Type.WHITE:
+                    case Type.TISANE:
+                    case Type.OTHER:
+                        break;
+                    default:
+                        return new ValidationError('Invalid tea type');
+                }
+    
+                const tea = {
+                    userId: userId,
+                    brand: brand,
+                    name: name,
+                    type: type,
+                    isPublic: isPublic,
+                    rating: 0.0
+                }
+    
+                const teaRef = await admin.firestore().collection('teas').add(tea)
+                
+                const responseTea = await admin
+                .firestore()
+                .collection('teas')
+                .doc(teaRef.id)
+                .get();
+                
+                const response = {
+                    id: teaRef.id,
+                    brand: responseTea.data().brand,
+                    name: responseTea.data().name,
+                    type: responseTea.data().type,
+                    rating: 0,
+                    isPublic: responseTea.data().isPublic,
+                    userId: responseTea.data().userId
+                } as Tea;
+
+                console.log(response);
+                return response;
             } catch(e) {
-                throw new AuthenticationError('Are you this user?');
+                throw new AuthenticationError('You are not logged in');
             }
+
         }
     }
 };

@@ -1,9 +1,9 @@
-enum Type {
-    'Black',
-    'Green',
-    'White',
-    'Tisane',
-    'Other'
+export enum Type {
+    BLACK = 'Black',
+    GREEN = 'Green',
+    WHITE = 'White',
+    TISANE = 'Tisane',
+    OTHER = 'Other'
 }
 
 export interface Tea {
