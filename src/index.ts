@@ -48,6 +48,7 @@ const typeDefs = gql`
         brand: String!
         name: String!
         type: String!
+        rating: Float!
         isPublic: Boolean
         userId: ID!
     }
@@ -224,6 +225,7 @@ const resolvers = {
                     brand: responseTea.data().brand,
                     name: responseTea.data().name,
                     type: responseTea.data().type,
+                    rating: 0,
                     isPublic: responseTea.data().isPublic,
                     userId: responseTea.data().userId
                 } as Tea;
