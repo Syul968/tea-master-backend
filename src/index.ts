@@ -15,6 +15,7 @@ import { ApolloServer, ApolloError, ValidationError, gql, AuthenticationError } 
 import { User } from './models/user';
 import { Tea, Type } from './models/tea';
 import { Brew } from './models/brew';
+const random = require('random');
 
 /**
  * Auth imports and setup
@@ -72,6 +73,7 @@ const typeDefs = gql`
 
     type Mutation {
         login(id: String!, password: String!): String
+        signup(id: String!, password: String!, email: String!, picture: String): String
         postTea(brand: String!, name: String!, type: String!, isPublic: Boolean): Tea!
     }
 `;
@@ -104,13 +106,27 @@ const resolvers = {
                 if(!user)
                     return new ValidationError('User ID not found');
     
-                const teas = await admin
+                var teas = [];
+                
+                return admin
                 .firestore()
                 .collection('teas')
                 .where('userId', '==', userId)
-                .get();
+                .get().then(snapshot => {
+                    if(snapshot.empty) {
+                        console.log("No teas for this user");
+                        return;
+                    }
+                    
+                    snapshot.forEach(doc => {
+                        var tea = doc.data() as Tea;
+                        tea.id = doc.id;
+                        teas.push(tea);
+                    });
+
+                    return teas;
+                });
     
-                return teas.docs.map( tea => tea.data() ) as Tea[];
             } catch(e) {
                 throw new AuthenticationError('You are not allowed to do that');
             }
@@ -159,34 +175,61 @@ const resolvers = {
             const dbHash = userDoc.data().password;
             // console.log(`salt from firebase: ${salt}`);
             
-<<<<<<< HEAD
-            try {
-                // bcrypt.hash(args.password, salt, (err, hash) => {
-                //     if(err) {
-                //         console.log('>>> Failed to hash password in request');
-                //         return console.log(err);
-                //     }
-                    
-                // });
-                bcrypt.compare(args.password, dbHash, (err, res) => {
-                    if(err) {
-                        console.log('>>> Failed while comparing the hashes');
-                        return console.log(err);
-                    }
-=======
             return bcrypt.compare(args.password, dbHash).then((res) => {
                 if(res) {
                     console.log('Logged in succesfully!');
                     const token = jwt.sign({
                         user: args.id,
                     }, authConfig.secret, signingOptions);
->>>>>>> develop
                     
                     return token as String;
                 } else {
                     return console.log('Verify your credentials');
                 }
             });
+        },
+        async signup(_:null, args: {id: string, password: string, email: string, picture: string}, context: { userId }) {
+            try {
+                const userId = await context.userId;
+                if(userId) {
+                    console.log('Already logged in');
+                    return new AuthenticationError('Already logged in');
+                }
+            } catch(e) {
+                throw new AuthenticationError('Login auth error');
+            }
+
+            const userDoc = await admin
+            .firestore()
+            .collection('users')
+            .doc(args.id)
+            .get();
+
+            if(userDoc.exists) {
+                console.log('User already exists');
+                console.log(userDoc.data());
+                return new ValidationError('User already exists');
+            }
+
+            const hash = await bcrypt.hash(args.password, random.int(5, 20));
+            console.log(`HASH: ${hash}`);
+
+            var user = {
+                email: args.email,
+                password: hash,
+            };
+
+            if(args.picture) {
+                user['picture'] = args.picture;
+            }
+
+            await admin.firestore().collection('users').doc(args.id).set(user);
+
+            const token = await jwt.sign({
+                user: args.id,
+            }, authConfig.secret, signingOptions);
+            
+            return token as String;
         },
         async postTea(_:null, args: { brand: String, name: String, type: String, isPublic: Boolean }, context: { userId }) {
             
