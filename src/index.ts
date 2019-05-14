@@ -236,6 +236,38 @@ const resolvers = {
                 throw new AuthenticationError('You are not logged in');
             }
 
+        },
+        async postUser(_:null, args: { id: String, email: String, password: String, profileImage: String }) {
+
+            const id = args.id;
+            const email = args.email;
+            const password = args.password;
+            const profileImage = args.profileImage;
+
+            const user = {
+                id: id,
+                email: email,
+                password: password,
+                profileImage: profileImage,
+            }
+
+            const userRef = await admin.firestore().collection('users').add(user)
+            
+            const responseUser = await admin
+            .firestore()
+            .collection('teas')
+            .doc(userRef.id)
+            .get();
+            
+            const response = {
+                id: userRef.id,
+                email: responseUser.data().email,
+                password: responseUser.data.password,
+                profileImage: responseUser.data.profileImage
+            } as User;
+
+            console.log(response);
+            return response;
         }
     }
 };
