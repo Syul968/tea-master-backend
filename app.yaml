@@ -1,2 +1,4 @@
+# This is the configuration file for deploying this API to
+# Google App Engine.
 runtime: nodejs8
 instance_class: F1
